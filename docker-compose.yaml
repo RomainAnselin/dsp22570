@@ -1,0 +1,207 @@
+#----
+# mkdir -p dc1s1/config
+# mkdir -p dc1n1/config
+# mkdir -p dc2s1/config
+# mkdir -p dc2n1/config
+#----
+version: '2'
+#--------
+#NETWORKS
+#--------
+networks:
+  vlan0:
+    driver: "bridge"
+    ipam:
+      config:
+        - subnet: 192.168.56.1/24
+  vlan1:
+    driver: "bridge"
+    ipam:
+      config:
+        - subnet: 192.168.57.1/24
+  vlan2:
+    driver: "bridge"
+    ipam:
+      config:
+        - subnet: 192.168.58.1/24
+
+services:
+#--------
+# NAT1
+#--------
+  nat1:
+    image: "dsp22570:nat"
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1024M
+        reservations:
+          cpus: '1'
+          memory: 1024M
+    cap_add:
+    - NET_ADMIN
+    sysctls:
+      - net.ipv4.ip_forward=1
+    command:
+      - sh 
+      - -c
+      - | 
+        iptables -t nat -A POSTROUTING -j MASQUERADE &&
+        iptables -t nat -A PREROUTING -p tcp -i vlan2 -d 192.168.58.3 -j DNAT --to-destination 192.168.56.4 &&
+        tail -F /dev/null
+    # entrypoint: 
+    #   - tail 
+    #   - -F 
+    #   - /dev/null
+    networks:
+      vlan0:
+        ipv4_address: 192.168.56.3
+      vlan2:
+        ipv4_address: 192.168.58.3
+
+# #--------
+# # SEED1
+# #--------
+#   seed_node_dc1:
+#     image: "datastax/dse-server:6.7.17"
+#     environment:
+#       - DS_LICENSE=accept
+#       - LISTEN_ADDRESS=192.168.56.4
+#       - BROADCAST_ADDRESS=192.168.58.3
+#     volumes:
+#       - /home/automaton/docker/dc1s1/config:/config
+#     links:
+#       - nat1
+#       - seed_node_dc2
+#     # Allow DSE to lock memory with mlock
+#     cap_add:
+#     - IPC_LOCK
+#     ulimits:
+#       memlock: -1
+#     deploy:
+#       resources:
+#         limits:
+#           cpus: '2'
+#           memory: 2000M
+#         reservations:
+#           cpus: '2'
+#           memory: 2000M
+#     networks:
+#       vlan0:
+#         ipv4_address: 192.168.56.4
+#       vlan1:
+#         ipv4_address: 192.168.57.4
+#--------
+# NAT2
+#--------
+  # nat2:
+  #   image: "ubuntu:20.04"
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '1'
+  #         memory: 1024M
+  #       reservations:
+  #         cpus: '1'
+  #         memory: 1024M
+  #   command:
+  #     - echo 1 > /proc/sys/net/ipv4/ip_forward
+  #     - sudo iptables -t nat -A POSTROUTING -j MASQUERADE
+  #     - sudo iptables -t nat -A PREROUTING -p tcp -i vlan2 -d 192.168.58.2 -j DNAT --to-destination 192.168.56.6
+  #   entrypoint: 
+  #     - /bin/bash -c "sleep infinity"
+  #   networks:
+  #     vlan0:
+  #       ipv4_address: 192.168.56.2
+  #     vlan2:
+  #       ipv4_address: 192.168.58.2
+#--------
+# SEED2
+#--------
+  # seed_node_dc2:
+  #   image: "datastax/dse-server:6.7.17"
+  #   environment:
+  #     - DS_LICENSE=accept
+  #     - LISTEN_ADDRESS=192.168.57.5
+  #     - BROADCAST_ADDRESS=192.168.57.5
+  #   volumes:
+  #     - /home/automaton/docker/dc2s1/config:/config
+  #   links:
+  #     - nat1
+  #   # Allow DSE to lock memory with mlock
+  #   cap_add:
+  #   - IPC_LOCK
+  #   ulimits:
+  #     memlock: -1
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '2'
+  #         memory: 2000M
+  #       reservations:
+  #         cpus: '2'
+  #         memory: 2000M 
+  #   networks:
+  #     vlan1:
+  #       ipv4_address: 192.168.57.5
+  #     vlan2:
+  #       ipv4_address: 192.168.58.5
+#--------
+# Node1 DC1
+#--------
+#   node_dc1:
+#     image: "datastax/dse-server:6.7.17"
+#     environment:
+#       - DS_LICENSE=accept
+#     links:
+#       - seed_node_dc1
+#     volumes:
+#       - /home/automaton/docker/dc1n1/config:/etc/dse/cassandra:ro
+#     # Allow DSE to lock memory with mlock
+#     cap_add:
+#     - IPC_LOCK
+#     ulimits:
+#       memlock: -1
+#     deploy:
+#       resources:
+#         limits:
+#           cpus: '2'
+#           memory: 2000M
+#         reservations:
+#           cpus: '2'
+#           memory: 2000M
+#     networks:
+#       vlan0:
+#         ipv4_address: 192.168.56.6
+#       vlan1:
+#         ipv4_address: 192.168.57.6
+# #--------
+# # Node1 DC2
+# #--------
+#   node_dc2:
+#     image: "datastax/dse-server:6.7.17"
+#     environment:
+#       - DS_LICENSE=accept
+#     links:
+#       - seed_node_dc2
+#     volumes:
+#       - /home/automaton/docker/dc2n1/config:/etc/dse/cassandra:ro
+#     # Allow DSE to lock memory with mlock
+#     cap_add:
+#     - IPC_LOCK
+#     ulimits:
+#       memlock: -1
+#     deploy:
+#       resources:
+#         limits:
+#           cpus: '2'
+#           memory: 2000M
+#         reservations:
+#           cpus: '2'
+#           memory: 2000M
+#     networks:
+#       vlan1:
+#         ipv4_address: 192.168.57.7
+#       vlan2:
+#         ipv4_address: 192.168.58.7
